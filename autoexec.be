@@ -11,7 +11,7 @@ class FridgeDriver
     tasmota.add_driver(global.fridgedriver_instance)
 
     self.has_started = 0
-    self.is_idle     = 0
+    self.is_idle     = 0   # a positive counter for turning power supply off, and negative counter for turning it back on
   end
   def every_second()
 
@@ -20,7 +20,7 @@ class FridgeDriver
     var low_external_fan    = 20      # external fan is turned off below this demand%
     var heatsink_multiplier = 2       # fan is turned to this percent% multiplied by the difference in temperature between ambient and heatsink temperature
 
-    var power_off_time      = 10      # turn off after this many seconds of all demands being off
+    var power_time          = 10      # turn off/on after this many seconds of all demands being off or one being on
 
     # print('Tick Tock', tasmota.millis())
 
@@ -65,18 +65,30 @@ class FridgeDriver
       outsidefan = 0
     end
 
-    var power = "on"
+    var power = "wait"
     if (outsidefan + insidefan + demand == 0)
-      if (self.is_idle < power_off_time)
+      if (self.is_idle < 0)
+        self.is_idle = 0
+      end
+      if (self.is_idle < power_time)
         self.is_idle = self.is_idle + 1
       else
         power = "off"
       end
     else
-      self.is_idle = 0
+      if (self.is_idle > 0)
+        self.is_idle = 0
+      end
+      if (-self.is_idle < power_time)
+        self.is_idle = self.is_idle - 1
+      else
+        power = "on"
+      end
     end
-    print ("power, demand, insidefan, deltat, outsidefan=", power, demand, insidefan, (heatsinktemp - ambienttemp), outsidefan)
-    tasmota.cmd("power " + power)
+    print ("is_idle, power_time, power, demand, insidefan, deltat, outsidefan=", self.is_idle, power_time, power, demand, insidefan, (heatsinktemp - ambienttemp), outsidefan)
+    if (power != "wait")
+      tasmota.cmd("power " + power)
+    end
     tasmota.cmd("channel1 " + str(demand))
     tasmota.cmd("channel2 " + str(insidefan))
     tasmota.cmd("channel3 " + str(outsidefan))
