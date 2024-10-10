@@ -4,12 +4,14 @@ import json
 
 class FridgeDriver
   var has_started
+  var is_idle
   def init()
     tasmota.remove_driver(global.fridgedriver_instance)
     global.fridgedriver_instance = self
     tasmota.add_driver(global.fridgedriver_instance)
 
     self.has_started = 0
+    self.is_idle     = 0
   end
   def every_second()
 
@@ -17,6 +19,9 @@ class FridgeDriver
     var low_internal_fan    = 20      # internal fan is turned to this value between low_peltier and this demand%
     var low_external_fan    = 20      # external fan is turned off below this demand%
     var heatsink_multiplier = 2       # fan is turned to this percent% multiplied by the difference in temperature between ambient and heatsink temperature
+
+    var power_off_time      = 10      # turn off after this many seconds of all demands being off
+
     # print('Tick Tock', tasmota.millis())
 
     # Following somehow causes initialisation, then two valid loops, then crash for no reason:
@@ -60,7 +65,18 @@ class FridgeDriver
       outsidefan = 0
     end
 
-    print ("demand, insidefan, deltat, outsidefan=", demand, insidefan, (heatsinktemp - ambienttemp), outsidefan)
+    var power = "on"
+    if (outsidefan + insidefan + demand == 0)
+      if (self.is_idle < power_off_time)
+        self.is_idle = self.is_idle + 1
+      else
+        power = "off"
+      end
+    else
+      self.is_idle = 0
+    end
+    print ("power, demand, insidefan, deltat, outsidefan=", power, demand, insidefan, (heatsinktemp - ambienttemp), outsidefan)
+    tasmota.cmd("power " + power)
     tasmota.cmd("channel1 " + str(demand))
     tasmota.cmd("channel2 " + str(insidefan))
     tasmota.cmd("channel3 " + str(outsidefan))
