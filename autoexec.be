@@ -1,3 +1,5 @@
+# -*- Mode: javascript -*-
+
 import json
 
 # Peltier cooler function
@@ -16,13 +18,15 @@ class FridgeDriver
   def every_second()
 
     var low_peltier         = 10      # peltier is turned off below this demand%
+    var internal_offset     = 8       # add some additional power to the internal fan to extract cold from the coldplate (got to be lower than low_peltier for it to turn off at all)
     var low_internal_fan    = 20      # internal fan is turned to this value between low_peltier and this demand%
     var low_external_fan    = 20      # external fan is turned off below this demand%
-    var heatsink_multiplier = 2       # fan is turned to this percent% multiplied by the difference in temperature between ambient and heatsink temperature
+    var heatsink_multiplier = 3       # fan is turned to this percent% multiplied by the difference in temperature between ambient and heatsink temperature
 
     var power_time          = 10      # turn off/on after this many seconds of all demands being off or one being on
 
     # print('Tick Tock', tasmota.millis())
+    # FIXME: should pick up a value from a PWM input that has a range of 2-30, and set PID sp with that
 
     # Following somehow causes initialisation, then two valid loops, then crash for no reason:
 
@@ -46,27 +50,43 @@ class FridgeDriver
     #   end
     # end
 
-    var sensorResult = json.load(tasmota.read_sensors())
-    var demand       = 100*(1-sensorResult.find('PID', []).find('PidPower', 1)) # Default value to know that reading failed
-    if (demand < low_peltier)
-      demand = 0
+    var sensorResult   = json.load(tasmota.read_sensors())
+    var heatsinktemp   = sensorResult.find('DS18B20-1', []).find('Temperature', 30) # Default value provided for when reading fails
+    var ambienttemp    = sensorResult.find('DS18B20-2', []).find('Temperature', 20) # Default value provided for when reading fails
+
+    var cooling_demand = 100*(1-sensorResult.find('PID', []).find('PidPower', 1)) # Default value provided for when reading fails (just turn the cooler off)
+    if (cooling_demand < low_peltier)
+      cooling_demand = 0
     end
-    var heatsinktemp = sensorResult.find('DS18B20-1', []).find('Temperature', 30) # Default value to know that reading failed
-    var ambienttemp  = sensorResult.find('DS18B20-2', []).find('Temperature', 20) # Default value to know that reading failed
-    var insidefan    = demand
-    if ((insidefan < low_internal_fan) && (insidefan > low_peltier))
-      insidefan = low_internal_fan
-    end
-    var outsidefan   = (heatsinktemp - ambienttemp)*3
-    if (outsidefan > 100)
-      outsidefan = 100
-    end
-    if (outsidefan < low_external_fan)
-      outsidefan = 0
+    if (cooling_demand > 100)
+      cooling_demand = 100
     end
 
+    var internalfan    = cooling_demand + internal_offset
+    var externalfan    = (heatsinktemp - ambienttemp)*heatsink_multiplier
+
+    if ((internalfan < low_internal_fan) && (internalfan >= low_peltier))
+      internalfan = low_internal_fan
+    end
+    if (internalfan < low_internal_fan)
+      internalfan = 0
+    end
+    if (internalfan > 100)
+      internalfan = 100
+    end
+
+    if (externalfan < low_external_fan)
+        # FIXME: will want hysteresis here
+      externalfan = 0
+    end
+    if (externalfan > 100)
+      externalfan = 100
+    end
+
+
+    # calculate whether to just turn off the entire power supply (with hysteresis)
     var power = "wait"
-    if (outsidefan + insidefan + demand == 0)
+    if (externalfan + internalfan + cooling_demand == 0)
       if (self.is_idle < 0)
         self.is_idle = 0
       end
@@ -85,13 +105,13 @@ class FridgeDriver
         power = "on"
       end
     end
-    print ("is_idle, power_time, power, demand, insidefan, deltat, outsidefan=", self.is_idle, power_time, power, demand, insidefan, (heatsinktemp - ambienttemp), outsidefan)
+    print ("is_idle, power_time, power, demand, internalfan, deltat, externalfan=", self.is_idle, power_time, power, cooling_demand, internalfan, (heatsinktemp - ambienttemp), externalfan)
     if (power != "wait")
-      tasmota.cmd("power " + power)
+      tasmota.cmd("power1 " + power)
     end
-    tasmota.cmd("channel1 " + str(demand))
-    tasmota.cmd("channel2 " + str(insidefan))
-    tasmota.cmd("channel3 " + str(outsidefan))
+    tasmota.cmd("channel2 " + str(cooling_demand))
+    tasmota.cmd("channel3 " + str(internalfan))
+    tasmota.cmd("channel4 " + str(externalfan))
   end
 end
 
