@@ -1,0 +1,22 @@
+gpios:
+
+cooler1:      PWM2:  22
+cooler2:      PWM2:  19
+internal fan: PWM3:  23
+external fan: PWM4:  18
+power enable: Relay: 13
+ds18B20: 25
+ADC temperature: 32
+
+We've also set
+gpio12: high (so a spare 3.3v power supply for DS18B20
+gpio33: low for spare 0v reference for temperature header
+
+and defined these PWMs that map to real pins, that we nevertheless
+don't use, only allowing them as an easy persistent store/recall for
+the PID parameters:
+
+thermostat (user slider input, not real): PWM1: 17 ; write to channel2
+PID Pb:                                   PWM6: 16 ; write to pwm6
+PID Ti:                                   PWM7: 15 ; write to pwm7
+PID Td:                                   PWM8: 14 ; write to pwm8

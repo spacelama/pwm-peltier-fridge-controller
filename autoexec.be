@@ -25,8 +25,19 @@ class FridgeDriver
 
     var power_time          = 10      # turn off/on after this many seconds of all demands being off or one being on
 
+    var low_thermostat      = 0.0
+    var high_thermostat     = 20.0
+#    var low_thermostat      = -50    #debugging while ADC temperature header is unplugged, yielding a temperature input of -48.85degC
+#    var high_thermostat     = -46
+    var low_pb              = 0
+    var high_pb             = 5
+    var low_ti              = 0
+    var high_ti             = 1800
+    var low_td              = low_ti/4
+    var high_td             = high_ti/4
+
+
     # print('Tick Tock', tasmota.millis())
-    # FIXME: should pick up a value from a PWM input that has a range of 2-30, and set PID sp with that
 
     # Following somehow causes initialisation, then two valid loops, then crash for no reason:
 
@@ -49,6 +60,28 @@ class FridgeDriver
     #     return
     #   end
     # end
+
+    # Actually set the thermostat (based on our fake PWM0 slider)
+    var setpoint_input = light.get(0).find('channels', [])[0]
+    var setpoint       = low_thermostat + setpoint_input * (high_thermostat - low_thermostat) / 255.0
+    tasmota.cmd("PidSp " + str(setpoint))
+
+    # do similar for PidPb (default 5 degrees, we probably want 1.5)
+    # Light only goes up to 5 sliders.  We have to obtain the other values through PWM cmd
+    #   var pb_input = light.get(4).find('channels', [])[0]  # we can get PWM5 through light interface, but let us aim for consistency
+    var pb_input = tasmota.cmd("pwm").find('PWM').find('PWM6')
+    var pb       = low_pb + pb_input * (high_pb - low_pb) / 1023.0
+    tasmota.cmd("PidPb " + str(pb))
+    # do similar for PidTi (default 1800 seconds)
+    var ti_input = tasmota.cmd("pwm").find('PWM').find('PWM7')
+    var ti       = low_ti + ti_input * (high_ti - low_ti) / 1023.0
+    tasmota.cmd("PidTi " + str(ti))
+    # do similar for PidTd (default 15 seconds, should generally be about 25% of Ti once it has been optimised)
+    var td_input = tasmota.cmd("pwm").find('PWM').find('PWM8')
+    var td       = low_td + td_input * (high_td - low_td) / 1023.0
+    tasmota.cmd("PidTd " + str(td))
+
+    print("setpoint(channel2[0-100])=", setpoint, "Pb(pwm6[0-1023])=", pb, "Ti(pwm7[0-1023])=", ti, "Td(pwm8[0-1023])=", td)
 
     var sensorResult   = json.load(tasmota.read_sensors())
     var heatsinktemp   = sensorResult.find('DS18B20-1', []).find('Temperature', 30) # Default value provided for when reading fails
@@ -105,13 +138,14 @@ class FridgeDriver
         power = "on"
       end
     end
-    print ("is_idle, power_time, power, demand, internalfan, deltat, externalfan=", self.is_idle, power_time, power, cooling_demand, internalfan, (heatsinktemp - ambienttemp), externalfan)
+    print ("is_idle=", self.is_idle, "power_time=", power_time, "power=", power, "demand=", cooling_demand, "internalfan=", internalfan, "deltat=",heatsinktemp - ambienttemp, "externalfan=", externalfan)
     if (power != "wait")
       tasmota.cmd("power1 " + power)
     end
-    tasmota.cmd("channel2 " + str(cooling_demand))
-    tasmota.cmd("channel3 " + str(internalfan))
-    tasmota.cmd("channel4 " + str(externalfan))
+    # channel2 (PWM1) is our setpoint temperature slider
+    tasmota.cmd("channel3 " + str(cooling_demand)) # PWM2
+    tasmota.cmd("channel4 " + str(internalfan))    # PWM3
+    tasmota.cmd("channel5 " + str(externalfan))    # PWM4
   end
 end
 
