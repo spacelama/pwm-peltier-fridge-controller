@@ -1,9 +1,9 @@
 gpios:
 
 cooler1:      PWM2:  22
-cooler2:      PWM2:  19
-internal fan: PWM3:  23
-external fan: PWM4:  18
+cooler2:      PWM3:  19
+internal fan: PWM4:  23
+external fan: PWM5:  18
 power enable: Relay: 13
 ds18B20: 25
 ADC temperature: 32

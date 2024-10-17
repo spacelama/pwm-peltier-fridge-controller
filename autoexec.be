@@ -36,6 +36,8 @@ class FridgeDriver
     var low_td              = low_ti/4
     var high_td             = high_ti/4
 
+    #var temp_avg  = 60.0   # seconds to average internal temperature reading over
+    var temp_avg  = 15.0   # seconds to average internal temperature reading over
 
     # print('Tick Tock', tasmota.millis())
 
@@ -81,12 +83,18 @@ class FridgeDriver
     var td       = low_td + td_input * (high_td - low_td) / 1023.0
     tasmota.cmd("PidTd " + str(td))
 
-    print("setpoint(channel2[0-100])=", setpoint, "Pb(pwm6[0-1023])=", pb, "Ti(pwm7[0-1023])=", ti, "Td(pwm8[0-1023])=", td)
-
     var sensorResult   = json.load(tasmota.read_sensors())
     var heatsinktemp   = sensorResult.find('DS18B20-1', []).find('Temperature', 30) # Default value provided for when reading fails
     var ambienttemp    = sensorResult.find('DS18B20-2', []).find('Temperature', 20) # Default value provided for when reading fails
+    var internaltemp   = sensorResult.find('ANALOG', []).find('Temperature1', 0)    # Default value provided for when reading fails
+    var internaltemp_last = sensorResult.find('PID', []).find('PidPv', 0)           # Default value provided for when reading fails
 
+    print("internaltemp=",internaltemp, "internaltemp_last=",internaltemp_last)
+    internaltemp = internaltemp/temp_avg + internaltemp_last*(temp_avg-1.0)/temp_avg
+    print(" ---> PidPV " + str(internaltemp))
+    tasmota.cmd("PidPV " + str(internaltemp))
+
+    # this will be the wrong value first loop through, but will be updated within a second:
     var cooling_demand = 100*(1-sensorResult.find('PID', []).find('PidPower', 1)) # Default value provided for when reading fails (just turn the cooler off)
     if (cooling_demand < low_peltier)
       cooling_demand = 0
@@ -138,14 +146,17 @@ class FridgeDriver
         power = "on"
       end
     end
+    print("temp=",internaltemp, "setpoint(channel2[0-100])=", setpoint, "Pb(pwm6[0-1023])=", pb, "Ti(pwm7[0-1023])=", ti, "Td(pwm8[0-1023])=", td)
     print ("is_idle=", self.is_idle, "power_time=", power_time, "power=", power, "demand=", cooling_demand, "internalfan=", internalfan, "deltat=",heatsinktemp - ambienttemp, "externalfan=", externalfan)
     if (power != "wait")
       tasmota.cmd("power1 " + power)
     end
     # channel2 (PWM1) is our setpoint temperature slider
     tasmota.cmd("channel3 " + str(cooling_demand)) # PWM2
-    tasmota.cmd("channel4 " + str(internalfan))    # PWM3
-    tasmota.cmd("channel5 " + str(externalfan))    # PWM4
+    tasmota.cmd("channel4 " + str(cooling_demand)) # PWM3
+    tasmota.cmd("channel5 " + str(internalfan))    # PWM4
+#    tasmota.cmd("channel5 " + str(externalfan))    # PWM4   - currently overridden with external fan to quieten down the variations.  Want to blend them instead
+    tasmota.cmd("channel6 " + str(externalfan))    # PWM5
   end
 end
 

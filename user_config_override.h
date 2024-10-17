@@ -94,14 +94,14 @@ Examples :
 #define STA_PASS1         "EnrotalphEg4ChrebfeOgEr1"     // [Password1] Wifi password
 
 #define USE_PID
-#define PID_USE_LOCAL_SENSOR
-#define PID_LOCAL_SENSOR_NAME "ANALOG"
-#define PID_LOCAL_SENSOR_TYPE "Temperature1"
+//#define PID_USE_LOCAL_SENSOR
+//#define PID_LOCAL_SENSOR_NAME "ANALOG"
+//#define PID_LOCAL_SENSOR_TYPE "Temperature1"
 #define PID_USE_TIMPROP 0
 // #define PID_SET_PWM 1
 
 #define LIGHT_CHANNEL_MODE true // SetOption68 1 for 3 independent PWM outs
-#define PID_DERIV_SMOOTH_FACTOR 10
+#define PID_DERIV_SMOOTH_FACTOR 3
 // #define LIGHT_MODE false        // SetOption15 off for PWM rather than Dimmer commands
 
 #endif  // _USER_CONFIG_OVERRIDE_H_
