@@ -83,9 +83,9 @@ class FridgeDriver
     var externalfan    = (heatsinktemp - ambienttemp)*heatsink_multiplier
     var externalfan_offset1 = 0
     var externalfan_offset2 = 0
-    if (internaltemp > setpoint + 1)
-      # boost the external fan if there is need to bring the internal temp down more to meet the setpoint (eg, a hot day, or just starting)
-      externalfan_offset1 = (internaltemp-setpoint - 1) * high_demand_heatsink_multiplier
+    if (internaltemp > setpoint)
+      # boost the external fan if there is need to bring the internal temp down more to meet the setpoint (eg, a hot day where 100% is not cooling enough, or just starting to cool)
+      externalfan_offset1 = (internaltemp-setpoint) * high_demand_heatsink_multiplier
     end
     if (ambienttemp > hot_ambient_threshold)
       # boost the external fan if there is need to be more effective (a hot day)
@@ -138,7 +138,7 @@ class FridgeDriver
 
         print ("delayed start: Initialising PWM")
         tasmota.cmd("Backlog channel3 128;channel4 128;channel5 128;channel6 128")
-        tasmota.cmd("Backlog PWMFrequency 100;PWMFrequency2 100;PWMFrequency3 100;PWMFrequency4 20;PWMFrequency5 20")
+        tasmota.cmd("Backlog PWMFrequency 100;PWMFrequency 100,2;PWMFrequency 100,3;PWMFrequency 20,4;PWMFrequency 20,5")
         print ("delayed start: done initialising...")
 
         self.power_state = -10
