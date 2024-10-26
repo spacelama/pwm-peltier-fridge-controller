@@ -137,8 +137,26 @@ class FridgeDriver
         self.has_started = self.has_started + 1
 
         print ("delayed start: Initialising PWM")
+
+        # Something is causing PWM output to not actually take that value unless
+        # channel is actively changed.  So if demand starts at 0 or 255 at boot,
+        # and the actual current output is anything but that value, then demand
+        # will never move from 0 or 255, so output will never change.  If we set
+        # demand halfway, then demand will *always* start to move away from
+        # halfway if output does not match actual requirements to keep
+        # steadystate, thereby causing actual output to finally be set correctly.
         tasmota.cmd("Backlog channel3 128;channel4 128;channel5 128;channel6 128")
+
+        # Make PWMFrequency same value as PWMFrequency2 & 3 so that
+        # "freq == timer0_freq && res == timer0_resolution" clause is satisfied in
+        # support_pwm.ino and allow the high current draw components to balance
+        # their ON periods better.
+        # It is probably better for the power supply that the high current power
+        # drawer can be better smoothed out at higher freq, but not so high we
+        # have switching losses in our PWM mosfets.
+        # The fans sounds better at 20Hz or 5000-6000 Hz, but run better at 20.
         tasmota.cmd("Backlog PWMFrequency 100;PWMFrequency 100,2;PWMFrequency 100,3;PWMFrequency 20,4;PWMFrequency 20,5")
+
         print ("delayed start: done initialising...")
 
         self.power_state = -10
