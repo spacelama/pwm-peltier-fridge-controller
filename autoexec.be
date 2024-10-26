@@ -25,6 +25,9 @@ class FridgeDriver
     var low_external_fan    = 20      # external fan is turned off below this demand%
     var low_external_fan_hyst=25      # and the high point where to turn it back on
     var heatsink_multiplier = 4       # fan is turned to this percent% multiplied by the difference in temperature between ambient and heatsink temperature
+    var high_demand_heatsink_multiplier = 10 # if we haven not cooled sufficiently yet, every difference in degree above 1 adds this much percentage to the external fan demand
+    var hot_ambient_threshold = 28    # if it is hotter than this degrees, then apply an extra demand on external cooling fan
+    var hot_ambient_heatsink_multiplier = 10 # if it is hotter than the threshold, then this is the additional multiplier above that threshold
 
     var power_time          = 10      # turn off/on after this many seconds of all demands being off or one being on
 
@@ -78,6 +81,17 @@ class FridgeDriver
     var cooling_demand = 100*(1-sensorResult.find('PID', []).find('PidPower', 1)) # Default value provided for when reading fails (just turn the cooler off)
     var internalfan    = cooling_demand + internal_offset
     var externalfan    = (heatsinktemp - ambienttemp)*heatsink_multiplier
+    var externalfan_offset1 = 0
+    var externalfan_offset2 = 0
+    if (internaltemp > setpoint + 1)
+      # boost the external fan if there is need to bring the internal temp down more to meet the setpoint (eg, a hot day, or just starting)
+      externalfan_offset1 = (internaltemp-setpoint - 1) * high_demand_heatsink_multiplier
+    end
+    if (ambienttemp > hot_ambient_threshold)
+      # boost the external fan if there is need to be more effective (a hot day)
+      externalfan_offset2 = (ambienttemp - hot_ambient_threshold) * hot_ambient_heatsink_multiplier
+    end
+    externalfan = externalfan + externalfan_offset1 + externalfan_offset2
 
     # allow the fan to turn off periodically if very low demand (any real need for this?  Don't want to drive a cooling demand if can't extract cold from the coldplate)
     if (cooling_demand < low_peltier)
@@ -160,7 +174,7 @@ class FridgeDriver
         end
       end
       print("temp=",internaltemp, "setpoint(channel2[0-100])=", setpoint, "Pb(pwm6[0-1023])=", pb, "Ti(pwm7[0-1023])=", ti, "Td(pwm8[0-1023])=", td)
-      print ("power_state=", self.power_state, "power_time=", power_time, "power=", power, "demand=", cooling_demand, "internalfan=", internalfan, "heatsink=",heatsinktemp,"deltat=",heatsinktemp - ambienttemp, "externalfan=", externalfan)
+      print ("power_state=", self.power_state, "power_time=", power_time, "power=", power, "demand=", cooling_demand, "internalfan=", internalfan, "heatsink=",heatsinktemp,"deltat=",heatsinktemp - ambienttemp, "externalfan_offset1=", externalfan_offset1, "externalfan_offset2=", externalfan_offset2, "externalfan=", externalfan)
     end
     if (power != "wait")
       tasmota.cmd("power1 " + power)
@@ -169,7 +183,6 @@ class FridgeDriver
     tasmota.cmd("channel3 " + str(cooling_demand)) # PWM2
     tasmota.cmd("channel4 " + str(cooling_demand)) # PWM3
     tasmota.cmd("channel5 " + str(internalfan))    # PWM4
-#    tasmota.cmd("channel5 " + str(externalfan))    # PWM4   - currently overridden with external fan to quieten down the variations.  Want to blend them instead
     tasmota.cmd("channel6 " + str(externalfan))    # PWM5
   end
 end
